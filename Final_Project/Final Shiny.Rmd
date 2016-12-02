@@ -1,0 +1,234 @@
+---
+title: "Final Shiny"
+author: "Alden Cowap"
+date: "11/28/2016"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+```{r eruptions, echo=FALSE}
+library(tidyverse)
+
+inputPanel(
+  selectInput("n_breaks", label = "Income Group:",
+              choices = c("NPT41", "NPT42", "NPT43", "NPT44", "NPT45"), selected = "NPT41"),
+  
+  sliderInput("bw_adjust", label = "Maximum Amount:",
+              min = 0, max = 100000, value = 30000, step = 100)
+)
+
+renderPlot({
+  
+  tomapshiny <- tomap %>% filter(input$n_breaks <= input$bw_adjust)
+  
+  ggplot() +
+  geom_path(data=counties, aes(x=long, y=lat, group = group)) +
+  coord_map() +
+  geom_point(data = tomapshiny, aes(x=Longitude, y=Latitude), color = "blue", size = .5)
+
+})
+```
+
+## Embedded Application
+
+It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+
+```{r tabsets, echo=FALSE}
+shinyAppDir(
+  system.file("examples/06_tabsets", package = "shiny"),
+  options = list(
+    width = "100%", height = 550
+  )
+)
+```
+
+
+```{r, echo=FALSE}
+function(input, output, session) {
+
+  ## Interactive Map ###########################################
+
+  # Create the map
+  output$map <- renderLeaflet({
+    leaflet() %>%
+      addTiles(
+        urlTemplate = "//{s}.tiles.mapbox.com/v3/jcheng.map-5ebohr46/{z}/{x}/{y}.png",
+        attribution = 'Maps by <a href="http://www.mapbox.com/">Mapbox</a>'
+      ) %>%
+      setView(lng = -93.85, lat = 37.45, zoom = 4)
+  })
+
+  # A reactive expression that returns the set of zips that are
+  # in bounds right now
+  zipsInBounds <- reactive({
+    if (is.null(input$map_bounds))
+      return(zipdata[FALSE,])
+    bounds <- input$map_bounds
+    latRng <- range(bounds$north, bounds$south)
+    lngRng <- range(bounds$east, bounds$west)
+
+    subset(tomap,
+      Latitude >= latRng[1] & Latitude <= latRng[2] &
+        Longitude >= lngRng[1] & Longitude <= lngRng[2])
+  })
+
+  # Precalculate the breaks we'll need for the two histograms
+
+# 
+#   output$histCentile <- renderPlot({
+#     # If no zipcodes are in view, don't plot
+#     if (nrow(zipsInBounds()) == 0)
+#       return(NULL)
+# 
+#     hist(zipsInBounds()$centile,
+#       breaks = centileBreaks,
+#       main = "SuperZIP score (visible zips)",
+#       xlab = "Percentile",
+#       xlim = range(allzips$centile),
+#       col = '#00DD00',
+#       border = 'white')
+#   })
+# 
+#   output$scatterCollegeIncome <- renderPlot({
+#     # If no zipcodes are in view, don't plot
+#     if (nrow(zipsInBounds()) == 0)
+#       return(NULL)
+# 
+#     print(xyplot(income ~ college, data = zipsInBounds(), xlim = range(allzips$college), ylim = range(allzips$income)))
+#   })
+
+  # This observer is responsible for maintaining the circles and legend,
+  # according to the variables the user has chosen to map to color and size.
+  # observe({
+  #   colorBy <- input$color
+  #   sizeBy <- input$size
+  # 
+  #   if (colorBy == "superzip") {
+  #     # Color and palette are treated specially in the "superzip" case, because
+  #     # the values are categorical instead of continuous.
+  #     colorData <- ifelse(zipdata$centile >= (100 - input$threshold), "yes", "no")
+  #     pal <- colorFactor("Spectral", colorData)
+  #   } else {
+  #     colorData <- zipdata[[colorBy]]
+  #     pal <- colorBin("Spectral", colorData, 7, pretty = FALSE)
+  #   }
+  # 
+  #   if (sizeBy == "superzip") {
+  #     # Radius is treated specially in the "superzip" case.
+  #     radius <- ifelse(zipdata$centile >= (100 - input$threshold), 30000, 3000)
+  #   } else {
+  #     radius <- zipdata[[sizeBy]] / max(zipdata[[sizeBy]]) * 30000
+  #   }
+  # 
+  #   leafletProxy("map", data = zipdata) %>%
+  #     clearShapes() %>%
+  #     addCircles(~longitude, ~latitude, radius=radius, layerId=~zipcode,
+  #       stroke=FALSE, fillOpacity=0.4, fillColor=pal(colorData)) %>%
+  #     addLegend("bottomleft", pal=pal, values=colorData, title=colorBy,
+  #       layerId="colorLegend")
+  # })
+
+  # Show a popup at the given location
+  showZipcodePopup <- function(zipcode, lat, lng) {
+    selectedZip <- tomap[tomap$Ziplat == zipcode,]
+    content <- as.character(tagList(
+      tags$h4("Score:", as.integer(selectedZip$centile)),
+      tags$strong(HTML(sprintf("%s, %s %s",
+        selectedZip$city.x, selectedZip$state.x, selectedZip$zipcode
+      ))), tags$br(),
+      sprintf("Number of Title IV students: %s", dollar(selectedZip$NUM4)), tags$br(),
+      sprintf("Endowment: %s%%", as.integer(selectedZip$endow)), tags$br(),
+      sprintf("Number of Students: %s", selectedZip$UG)
+    ))
+    leafletProxy("map") %>% addPopups(lng, lat, content, layerId = zipcode)
+  }
+
+  # When map is clicked, show a popup with city info
+  observe({
+    leafletProxy("map") %>% clearPopups()
+    event <- input$map_shape_click
+    if (is.null(event))
+      return()
+
+    isolate({
+      showZipcodePopup(event$id, event$lat, event$lng)
+    })
+  })
+
+
+  ## Data Explorer ###########################################
+
+  observe({
+    cities <- if (is.null(input$states)) character(0) else {
+      filter(cleantable, State %in% input$states) %>%
+        `$`('City') %>%
+        unique() %>%
+        sort()
+    }
+    stillSelected <- isolate(input$cities[input$cities %in% cities])
+    updateSelectInput(session, "cities", choices = cities,
+      selected = stillSelected)
+  })
+
+  observe({
+    zipcodes <- if (is.null(input$states)) character(0) else {
+      cleantable %>%
+        filter(State %in% input$states,
+          is.null(input$cities) | City %in% input$cities) %>%
+        `$`('Zipcode') %>%
+        unique() %>%
+        sort()
+    }
+    stillSelected <- isolate(input$zipcodes[input$zipcodes %in% zipcodes])
+    updateSelectInput(session, "zipcodes", choices = zipcodes,
+      selected = stillSelected)
+  })
+
+  observe({
+    if (is.null(input$goto))
+      return()
+    isolate({
+      map <- leafletProxy("map")
+      map %>% clearPopups()
+      dist <- 0.5
+      zip <- input$goto$zip
+      lat <- input$goto$lat
+      lng <- input$goto$lng
+      showZipcodePopup(zip, lat, lng)
+      map %>% fitBounds(lng - dist, lat - dist, lng + dist, lat + dist)
+    })
+  })
+
+  output$ziptable <- DT::renderDataTable({
+    df <- cleantable %>%
+      filter(
+        Score >= input$minScore,
+        Score <= input$maxScore,
+        is.null(input$states) | State %in% input$states,
+        is.null(input$cities) | City %in% input$cities,
+        is.null(input$zipcodes) | Zipcode %in% input$zipcodes
+      ) %>%
+      mutate(Action = paste('<a class="go-map" href="" data-lat="', Lat, '" data-long="', Long, '" data-zip="', Zipcode, '"><i class="fa fa-crosshairs"></i></a>', sep=""))
+    action <- DT::dataTableAjax(session, df)
+
+    DT::datatable(df, options = list(ajax = list(url = action)), escape = FALSE)
+  })
+}
+
+
+
+```

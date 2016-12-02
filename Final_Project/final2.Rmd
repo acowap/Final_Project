@@ -1,0 +1,275 @@
+---
+title: "final2"
+author: "Alden Cowap"
+date: "November 28, 2016"
+output: html_document
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
+
+To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
+
+## Inputs and Outputs
+
+You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
+
+---
+title: "Final Project"
+author: "Alden Cowap"
+date: "November 3, 2016"
+output: html_document
+---
+
+```{r, echo=FALSE}
+
+## Get data and clean data
+
+setwd("/Users/aldencowap/Documents/Fall 2016/Data Science/Final_Project")
+library(dplyr)
+library(pdftools)
+library(stringr)
+library(tm)
+library(tidyr) 
+library(SnowballC)
+library(tidyverse)
+library(stringdist)
+library(USAboundaries)
+library(maptools)
+library(sp)
+library(broom)
+library(leaflet)
+
+datavar <- read.csv("variables.csv")
+#data2015 <- read.csv("CollegeScorecard_Raw_Data/MERGED2014_15_PP.csv")
+#data2014 <- read.csv("CollegeScorecard_Raw_Data/MERGED2013_14_PP.csv")
+data2013 <- read.csv("CollegeScorecard_Raw_Data/MERGED2012_13_PP.csv")
+needblind <- read.csv("needblindschools.csv")
+
+endowment <- read.csv("endowment2013.csv")
+
+endowment2 <- endowment %>% mutate(stringlabel = as.character(Rank)) %>% 
+  filter(!(Rank %in% Rank[1:12])) %>% 
+  filter(!(Rank %in% Rank[42:51])) %>% 
+  mutate(first = substr(stringlabel, 1, 1)) %>% 
+  filter(first %in% c(0:9))
+
+states <- as.vector(state.abb)
+
+endowmentname <- endowment2 %>% 
+  mutate(stringlabel = str_replace_all(stringlabel, "<cd>", ".")) %>% 
+  mutate(namebf = removeNumbers(stringlabel)) %>% 
+  mutate(namebf = removePunctuation(namebf)) %>% 
+  mutate(name = removeWords(namebf, states)) 
+
+uniname <- as.vector(endowmentname[["namebf"]])
+
+
+endowmentnums <- endowmentname %>% 
+  mutate(nums = str_replace_all(stringlabel,"[^0-9 , .]","")) %>% 
+  mutate(nums2 = str_replace_all(stripWhitespace(nums), " ", "/")) %>% 
+  mutate(nums2 = str_replace_all(nums2, "[. ,]", "")) %>% 
+  mutate(nums2 = str_replace_all(nums2, "///", "/")) %>% 
+  mutate(nums2 = str_replace_all(nums2, "//", "/")) %>% 
+  separate(nums2, into = c("rank", "endow2013", "endow2012", "change"), sep = "/") %>% 
+  mutate(name = str_replace_all(name, " ", "")) %>% 
+  mutate(name = str_replace(name, "CarnegieMellonUniversityv", "CarnegieMellonUniversity")) %>% 
+  mutate(name = str_replace(name, "GeorgetownUniversityDC", "GeorgetownUniversity")) %>% 
+  mutate(name = str_replace(name, "LawrenceUniversityofWisconsin", "LawrenceUniversity")) %>% 
+  mutate(name = str_replace(name, "NorthCarolinaATStateUniversity", "NorthCarolinaStateUniversity")) %>% 
+  mutate(name = str_replace(name, "PennsylvaniaStateUniversityii", "PennsylvaniaStateUniversity")) %>% 
+  mutate(name = str_replace(name, "SanJoseStateUniversityTowerFoundation", "SanJoseStateUniversity")) %>% 
+  mutate(name = str_replace(name, "StJohnsCollegeix", "StJohnsCollege")) %>% 
+  mutate(name = str_replace(name, "UniversityofIllinoisFoundationiv", "UniversityofIllinoisatChicago")) %>% 
+  mutate(name = str_replace(name, "FloridaStateUniversityFoundation", "FloridaStateUniversity")) %>% 
+  mutate(name = str_replace(name, "UniversityofNorthCarolinaatChapelHillFoundations", "UniversityofNorthCarolina")) 
+
+
+
+data2013temp <- data2013 %>% mutate(name = str_replace_all(as.character(INSTNM), " ", "")) %>% 
+  mutate(name = str_replace(name, "ColumbiaUniversityintheCityofNewYork", "ColumbiaUniversity")) %>% 
+  mutate(name = str_replace(name,"CooperUnionfortheAdvancementofScienceandArt", "CooperUnion")) %>% 
+  mutate(name = str_replace(name,"FairleighDickinsonUniversity-MetropolitanCampus", "FairleighDickinsonUniversity")) %>%   
+  mutate(name = str_replace(name,"HolyCrossCollege", "HolyCross")) %>%   
+  mutate(name = str_replace(name,"JewishTheologicalSeminaryofAmerica", "JewishTheologicalSeminary")) %>%  
+  mutate(name = str_replace(name,"Lewis&ClarkCollege", "LewisClarkCollege")) %>%   
+  mutate(name = str_replace(name,"MountSaintMaryCollege", "MountSaintMarysCollege")) %>% 
+  mutate(name = str_replace(name,"NorthCarolinaA&TStateUniversity", "NorthCarolinaStateUniversity")) %>%  
+  mutate(name = str_replace(name,"PennsylvaniaStateUniversity-MainCampus", "PennsylvaniaStateUniversity")) %>%   
+  mutate(name = str_replace(name,"StJohn'sCollege", "StJohnsCollege")) %>%   
+  mutate(name = str_replace(name,"TulaneUniversityofLouisiana", "TulaneUniversity")) %>%   
+  mutate(name = str_replace(name,"UniversityofNewHampshire-MainCampus", "UniversityofNewHampshire")) %>%   
+  mutate(name = str_replace(name,"UniversityofNorthCarolinaatChapelHill", "UniversityofNorthCarolina")) %>%   
+  mutate(name = str_replace(name,"UniversityofVirginia-MainCampus", "UniversityofVirginia")) %>%   
+  mutate(name = str_replace(name,"UniversityofWashington-SeattleCampus", "UniversityofWashington"))
+
+data2013temp <- data2013temp %>% 
+  mutate(NPT41_PRIV = as.numeric(as.character(NPT41_PRIV))) %>%
+  mutate(NPT42_PRIV = as.numeric(as.character(NPT42_PRIV))) %>% 
+  mutate(NPT43_PRIV = as.numeric(as.character(NPT43_PRIV))) %>% 
+  mutate(NPT44_PRIV = as.numeric(as.character(NPT44_PRIV))) %>% 
+  mutate(NPT45_PRIV = as.numeric(as.character(NPT45_PRIV))) %>% 
+  mutate(NPT41_PUB = as.numeric(as.character(NPT41_PUB))) %>% 
+  mutate(NPT42_PUB = as.numeric(as.character(NPT42_PUB))) %>% 
+  mutate(NPT43_PUB = as.numeric(as.character(NPT43_PUB))) %>% 
+  mutate(NPT44_PUB = as.numeric(as.character(NPT44_PUB))) %>% 
+  mutate(NPT45_PUB = as.numeric(as.character(NPT45_PUB))) %>% 
+  mutate(NPT41 = ifelse(is.na(NPT41_PRIV), NPT41_PUB, NPT41_PRIV)) %>% 
+  mutate(NPT42 = ifelse(is.na(NPT42_PRIV), NPT42_PUB, NPT42_PRIV)) %>% 
+  mutate(NPT43 = ifelse(is.na(NPT43_PRIV), NPT43_PUB, NPT43_PRIV)) %>% 
+  mutate(NPT44 = ifelse(is.na(NPT44_PRIV), NPT44_PUB, NPT44_PRIV)) %>% 
+  mutate(NPT45 = ifelse(is.na(NPT45_PRIV), NPT45_PUB, NPT45_PRIV)) %>% 
+  mutate(NUM4 = as.numeric(as.character(NUM4_PRIV))) %>% 
+  mutate(NUM4 = ifelse(is.na(NUM4), as.numeric(as.character(NUM4_PUB)), NUM4))
+
+
+total2013 <- inner_join(data2013temp, endowmentnums, by = "name") %>% arrange(rank)
+
+
+latlong <- read_csv("latlong.csv") %>% 
+  mutate(Name = Institution) %>% 
+  mutate(Name = str_replace_all(Name, " ", "")) %>% 
+  mutate(Name = str_replace_all(Name, "[. , ']", "")) %>% 
+  rename(Ziplat = ZIP)
+  
+
+total2013_lat <- inner_join(total2013, latlong, by=c("UNITID" = "UnitID"))
+
+allschools_lat <- inner_join(data2013temp, latlong, by=c("UNITID" = "UnitID"))
+
+needblind <- needblind %>% mutate(school = str_replace_all(Name.of.School, "[^a-z A-Z]", "")) %>% 
+  mutate(school = str_replace_all(school, " ", "")) %>% 
+  mutate(school = str_replace(school, "MassachusettsInstituteofTechnologyMIT", "MassachusettsInstituteofTechnology")) %>% 
+  mutate(school = str_replace(school, "NewYorkUniversityNYU", "NewYorkUniversity")) %>% 
+  mutate(school = str_replace(school, "UniversityofSouthernCaliforniaUSC", "UniversityofSouthernCalifornia")) %>% 
+  mutate(school = str_replace(school, "WashingtonUniversity", "WashingtonUniversityinStLouis")) %>% 
+  mutate(school = str_replace(school, "HarvardCollege", "HarvardUniversity")) %>% 
+  mutate(school = str_replace(school, "NorthCarolinaStateUniversityNCSU", "NorthCarolinaStateUniversity")) %>% 
+  mutate(school = str_replace(school,"PennState", "PennsylvaniaStateUniversity")) %>% 
+  mutate(school = str_replace(school,"SanJoseStateUniversitySJSU", "SanJoseStateUniversity"))
+  
+
+blindnames <- as.vector(needblind$school)
+
+
+blinddata <- total2013_lat %>% filter(name %in% blindnames)
+
+name <- as.vector(blinddata$name)
+
+antidata <- needblind %>% filter(!(school %in% name))
+
+```
+
+
+```{r, echo=FALSE}
+
+tograph <- blinddata %>% 
+  mutate(endow = as.numeric(endow2013)) %>% 
+  mutate(avg_cost = as.numeric(as.character(INC_PCT_M1))) %>% 
+  filter(!is.na(avg_cost))
+
+TEMP <- tograph %>% select(endow, INSTNM, NPT41, NPT42, NPT43, NPT44, NPT45)
+
+TEMP <- TEMP %>% gather(income, amount, 3:7)
+
+ggplot(data=tograph, aes(x=log(endow), y=NPT45)) + geom_point() + geom_smooth(se=FALSE)
+
+ggplot(data=TEMP, aes(x = log(endow), y = amount, color = income)) + geom_smooth(se = FALSE) + geom_point()
+
+#TEMP %>% arrange(endow)
+
+TEMP_no_nc <- TEMP %>% filter(endow!=32959)
+
+
+ggplot(data=TEMP_no_nc, aes(x = log10(endow), y = amount, color = income)) + 
+  geom_smooth(method="lm", se = TRUE) + 
+  geom_point()
+
+toregress <- tograph %>% select(endow, FSEND_COUNT, NPT41, NPT42, NPT43, NPT44, NPT45, NUM4, FSEND_1, FSEND_4, INC_PCT_M2, INC_PCT_M1, INC_PCT_H1, INC_PCT_H2)
+
+fitlowest <- lm(NPT41 ~ log(endow) + NUM4, data=tograph)
+summary(fitlowest)
+
+fitsecond <- lm(NPT42 ~ log(endow) + NUM4, data=tograph)
+summary(fitsecond)
+
+fitthird <- lm(NPT43 ~ log(endow) + NUM4, data=tograph)
+summary(fitthird)
+
+fitfourth <- lm(NPT44 ~ log(endow) + NUM4, data=tograph)
+summary(fitfourth)
+
+fithigh <- lm(NPT45 ~ log(endow) + NUM4, data=tograph)
+summary(fithigh)
+
+
+fitcheck <- lm(NPT45 ~ NPT41, data=tograph)
+summary(fitcheck)
+
+ggplot(data = tograph, aes(x=NPT41, y=NPT45, col=log10(endow))) + geom_point() + geom_smooth(method="lm")
+
+zipcodes <- read_csv("zipcodes.csv") %>% mutate(ZIP = Zipcode)
+
+
+tomap <- allschools_lat %>% 
+  select(NPT41, NPT42, NPT43, NPT44, NPT45, Ziplat, INSTNM, Longitude, Latitude, STABBR, UG)
+
+county_shp <- us_states()
+county_data <- county_shp@data %>% mutate(n=1:52)
+county_polygon <- tidy(county_shp, region="geoid")
+
+
+counties <- left_join(county_polygon, county_data, by=c("id"="geoid")) %>% 
+  filter( !name %in% c("Alaska", "Hawaii", "Puerto Rico")) %>% filter(!is.na(name))
+
+
+tomap <- tomap %>% filter( !STABBR %in% c("AK", "HI", "PR")) %>% filter(!is.na(STABBR)) %>% 
+  filter(NPT41 > 0)
+
+  
+ggplot() +
+  geom_path(data=counties, aes(x=long, y=lat, group = group)) +
+  coord_map() +
+  geom_point(data = tomap, aes(x=Longitude, y=Latitude), color = "blue", size = .5)
+
+
+
+leaflet(data = tomap) %>% 
+  addTiles() %>%
+  addMarkers(~Longitude, ~Latitude, popup = ~as.character(INSTNM))
+
+```
+
+
+
+```{r eruptions, echo=FALSE}
+inputPanel(
+  sliderInput("income", label = "Family Income:",
+              min = 0, max = 200000, value = 50000, step = 500) ,
+  
+  sliderInput("max", label = "Maximum Amount:",
+              min = 0, max = 100000, value = 30000, step = 100)
+)
+
+renderPlot({
+  
+  
+  var <- ifelse(input$income <= 30000, 1, 
+                ifelse(input$income <=48000 & input$income > 30000, 2, 
+                       ifelse(input$income> 48000 & input$income <= 75000, 3,
+                              ifelse(input$income>75000 & input$income<=110000, 4, 5))))
+  
+  
+  tomapshiny <- tomap %>% filter(tomap[var] <= input$max)
+  
+ggplot() +
+  geom_path(data=counties, aes(x=long, y=lat, group = group)) +
+  coord_map() +
+  geom_point(data = tomapshiny, aes(x=Longitude, y=Latitude), color = "blue", size = .5)
+
+})
+```

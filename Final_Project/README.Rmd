@@ -1,0 +1,36 @@
+---
+title: "MATH 216 Data Science Final Project (Fall 2016)"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+---
+output: 
+  html_document: 
+    keep_md: yes
+---
+
+
+* Name: 
+* Project title:
+* Write-up on RPubs: <http://rpubs.com/rudeboybert/Tree_Growth_Differences>
+* Abstract: Hello World!
+
+
+```{r, echo=FALSE, message=FALSE}
+#
+# Include code for one plot here
+#
+library(ggplot2)
+library(dplyr)
+small <- sample_n(diamonds, 2000) 
+ggplot(data=diamonds, aes(x=carat,y=price,colour=cut)) +
+  geom_point() +
+  scale_y_log10() + 
+  facet_wrap(~cut) +
+  ggtitle("Replace this plot with one of your own")
+```
+
