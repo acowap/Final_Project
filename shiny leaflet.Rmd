@@ -10,7 +10,7 @@ runtime: shiny
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This project aims to create a useful tool for students applying to college by allowing them to find schools they will be able to afford. Students are able to select their academic crudentials, household income level, and the most they are willing to pay for tuition and then see an interactive map that includes all of the schools that fit their needs. The hope is that this will allow students to move beyond sticker shock at the listed prices of colleges and universities and see all of their possiblities depending on their limitations. This interactive map is proceeded by a brief examination of the realtionship between college affordability and college endowment across the United States. 
+This project aims to create a useful tool for students applying to college by allowing them to find schools they will be able to afford. Students are able to select their academic crudentials, household income level, and the most they are willing to pay for tuition and then see an interactive map that includes all of the schools that fit their needs. The hope is that this will allow students to move beyond sticker shock at the listed prices of colleges and universities and see all of their possiblities depending on their limitations. This interactive map is proceeded by a brief examination of the realtionship between college affordability and college endowment across the United States. All of the data below comes from 2012-2013.  
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -322,4 +322,10 @@ text <- c("Average Net Tuition for:", "under $30,000:", "$30,000-$48,000:", "$48
 })
 
 ```
+
+Data Sources:
+
+* College Scorecard <https://collegescorecard.ed.gov/data/>
+* National Association of College and Universtiy Buisness Officers <http://www.nacubo.org/Research/NACUBO-Commonfund_Study_of_Endowments/Public_NCSE_Tables/Total_Market_Value_of_Endowments.html>
+* National Center for Education Statistics <https://nces.ed.gov/ipeds/datacenter/InstitutionByName.aspx>
 
